@@ -27,8 +27,8 @@ impl Router {
 
         let args: Vec<_> = std::env::args().collect();
 
-        let dev_name = args.get(1).map(|s| s.as_str()).unwrap_or("tun0");
-        let local_ip = args.get(2).map(|s| s.as_str()).unwrap_or("10.10.0.1");
+        let dev_name = args.get(1).map(|s| s.as_str()).unwrap_or("tun1");
+        let local_ip = args.get(2).map(|s| s.as_str()).unwrap_or("10.10.0.2");
         let mask = Ipv4Addr::new(255, 255, 255, 0);
         let dev = DeviceBuilder::new()
             .name(dev_name)

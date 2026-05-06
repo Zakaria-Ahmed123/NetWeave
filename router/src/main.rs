@@ -1,4 +1,5 @@
-use iced::{Task, Theme};
+use anyhow::Result;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -7,101 +8,70 @@ mod peer;
 mod event;
 
 use router::{Router, RouterCommand};
-use event::{LanEvent,Message};
 
-fn main() -> iced::Result {
-    iced::application("Lan Racer", App::update, App::view)
-        .theme(|_| Theme::KanagawaWave)
-        .run_with(App::init)
-}
-pub struct App {
-    cmd_tx: mpsc::Sender<RouterCommand>,
-    event_rx: mpsc::Receiver<LanEvent>,
-    logs: Vec<String>,
-}
+#[tokio::main]
+async fn main() -> Result<()> {
+    let token = CancellationToken::new();
 
-impl App {
-    fn init() -> (Self, Task<Message>) {
-        let (cmd_tx, cmd_rx) = mpsc::channel(32);
-        let (event_tx, event_rx) = mpsc::channel(32);
+    // Command channel (main → router)
+    let (cmd_tx, cmd_rx) = mpsc::channel(32);
 
-        let router = Router::new();
+    let router = Router::new();
 
-        let token = CancellationToken::new();
-
-        // spawn router
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async move {
-                let _ = router.route(token, cmd_rx, event_tx).await;
-            });
-        });
-
-        (
-            Self {
-                cmd_tx,
-                event_rx,
-                logs: vec![],
-            },
-            Task::perform(async {}, |_| Message::Tick),
-        )
-    }
-
-    fn update(&mut self, message: Message) -> Task<Message> {
-    match message {
-        Message::CreateOffer => {
-            let tx = self.cmd_tx.clone();
-            return Task::perform(async move {
-                tx.send(RouterCommand::CreateOffer {
-                    peer_id: "peer1".into(),
-                })
-                .await
-                .ok();
-            }, |_| Message::Tick);
+    // Spawn router
+    tokio::spawn({
+        let token = token.clone();
+        async move {
+            if let Err(e) = router.route(token, cmd_rx).await {
+                eprintln!("Router error: {e}");
+            }
         }
+    });
 
-        Message::Tick => {
-            // poll events
-            while let Ok(event) = self.event_rx.try_recv() {
-                match event {
-                    LanEvent::PeerConnected(pid) => {
-                        self.logs.push(format!("Connected: {}", pid));
-                    }
-                    LanEvent::PeerDisconnected(pid) => {
-                        self.logs.push(format!("Disconnected: {}", pid));
-                    }
-                    LanEvent::PacketFromPeer(_) => {
-                        self.logs.push("Packet received".into());
-                    }
-                    LanEvent::NewPeerOffer(pid, _) => {
-                        self.logs.push(format!("Offer from {}", pid));
-                    }
-                }
+    // CLI loop
+    let stdin = BufReader::new(tokio::io::stdin());
+    let mut lines = stdin.lines();
+
+    println!("Commands:");
+    println!("offer <peer_id>");
+    println!("accept <peer_id> <sdp>");
+    println!("answer <peer_id> <sdp>");
+
+    while let Ok(Some(line)) = lines.next_line().await {
+        let parts: Vec<_> = line.splitn(3, ' ').collect();
+
+        match parts.as_slice() {
+            ["offer", peer_id] => {
+                let _ = cmd_tx
+                    .send(RouterCommand::CreateOffer {
+                        peer_id: peer_id.to_string(),
+                    })
+                    .await;
             }
 
-            // keep polling
-            return Task::perform(async {}, |_| Message::Tick);
-        }
+            ["accept", peer_id, sdp] => {
+                let _ = cmd_tx
+                    .send(RouterCommand::AcceptOffer {
+                        peer_id: peer_id.to_string(),
+                        sdp: sdp.to_string(),
+                    })
+                    .await;
+            }
 
-        _ => {}
+            ["answer", peer_id, sdp] => {
+                let _ = cmd_tx
+                    .send(RouterCommand::CreateAnswer {
+                        peer_id: peer_id.to_string(),
+                        sdp: sdp.to_string(),
+                    })
+                    .await;
+            }
+
+            _ => println!("Unknown command"),
+        }
     }
 
-    Task::none()
-   }
+    token.cancel();
 
-   fn view<'a>(&'a self) -> iced::Element<'a,Message> {
-    use iced::widget::{column, button, text};
-
-    column![
-        button("Create Offer").on_press(Message::CreateOffer),
-        text("Logs:"),
-        column(
-            self.logs
-                .iter()
-                .map(|l| text(l.clone()).into())
-                .collect::<Vec<iced::Element<Message>>>()
-        )
-    ]
-    .into()
-   }
+    Ok(())
 }
