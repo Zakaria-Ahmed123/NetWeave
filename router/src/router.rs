@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 use anyhow::Result;
 use std::net::Ipv4Addr;
 use tokio::sync::mpsc;
@@ -7,14 +8,20 @@ use tun_rs::DeviceBuilder;
 use crate::event::LanEvent;
 use crate::peer::PeerManager;
 
-pub struct Router {}
+#[derive(Debug)]
+pub enum RouterCommand{ 
+    CreateOffer { peer_id: String },
+    AcceptOffer { peer_id: String, sdp: String },
+    CreateAnswer { peer_id: String, sdp: String },
+}
+pub struct Router; 
 
 impl Router {
     pub fn new() -> Self {
         Self {}
     }
 
-    pub async fn route(&self, token: CancellationToken) -> Result<()> {
+    pub async fn route(&self, token: CancellationToken,mut cmd_rx: mpsc::Receiver<RouterCommand>) -> Result<()> {
         let (tx, mut rx) = mpsc::channel(32);
         let manager = PeerManager::new(tx.clone()).await?;
 
@@ -65,6 +72,41 @@ impl Router {
             }
         };
 
+    let command_loop = async {
+      while let Some(cmd) = cmd_rx.recv().await {
+        match cmd {
+            RouterCommand::CreateOffer { peer_id } => {
+                match manager.create_offer(peer_id.clone()).await {
+                    Ok(sdp) => {
+                        println!("\n=== OFFER for {} ===", peer_id);
+                        println!("{sdp}");
+                    }
+                    Err(e) => eprintln!("Error: {e}"),
+                }
+            }
+
+            RouterCommand::AcceptOffer { peer_id, sdp } => {
+                match manager.accept_offer(peer_id.clone(), &sdp).await {
+                    Ok(answer) => {
+                        println!("\n=== ANSWER for {} ===", peer_id);
+                        println!("{answer}");
+                    }
+                    Err(e) => eprintln!("Error: {e}"),
+                }
+            }
+
+            RouterCommand::CreateAnswer { peer_id, sdp } => {
+                if let Err(e) = manager
+                    .set_answer_as_offerer(&peer_id, &sdp)
+                    .await
+                {
+                    eprintln!("Error: {e}");
+                }
+            }
+        }
+    }
+};
+
         tokio::select! {
             _ = mainloop => {
                 println!("the mainloop exited to early");
@@ -72,6 +114,9 @@ impl Router {
             _ = recvloop => {
                 println!("the recvloop exited to early");
             },
+            _ = command_loop => { 
+                println!("command loop exited"); 
+            }
             _ = token.cancelled() => {
                 println!("Bye!!");
             }
