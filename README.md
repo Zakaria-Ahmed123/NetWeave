@@ -24,13 +24,19 @@ peers
 
 ## 1. PeerManager
 
-Handles: - WebRTC peer connections - DataChannels - Offer/Answer
-negotiation - Message routing between peers
+Handles: 
+- WebRTC peer connections 
+- DataChannels
+- Offer/Answer negotiation
+- Message routing between peers
 
 ## 2. Router
 
-Handles: - TUN device I/O - Packet routing between OS and peers -
-Command execution (connect, chat, etc.) - Event processing
+Handles: 
+- TUN device I/O
+- Packet routing between OS and peers
+- Command execution (connect, chat, etc.)
+- Event processing
 
 ## 3. Signaling Server
 
@@ -96,10 +102,10 @@ cargo run --bin router -- tun1 10.10.0.2
         chat peer-2 <your_message> 
 ```
 - Then You will see the following output on peer-1 and peer-2 terminals :
-``` bash
+   ``` bash
         [Chat]: peer-1 message
         [Chat]: peer-2 message 
-```
+   ```
 
 ## Different machines (LAN or internet)
 
