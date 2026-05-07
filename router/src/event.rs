@@ -7,10 +7,3 @@ pub enum LanEvent {
     PeerConnected(String),
     PeerDisconnected(String),
 }
-
-#[derive(Debug, Clone)]
-pub enum Message {
-    CreateOffer,
-    AcceptOffer(String),
-    Tick, // to poll events
-}

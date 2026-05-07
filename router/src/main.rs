@@ -1,66 +1,79 @@
-use anyhow::Result;
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::sync::mpsc;
-use tokio_util::sync::CancellationToken;
+use iced::{Application, Command, Element, Theme};
+use iced::widget::{button, column, row, text, container, scrollable};
 
-mod router;
-mod peer;
-mod event;
-mod signaling;
+#[derive(Debug, Clone)]
+pub enum Message {
+    StartServer,
+    ConnectPeer,
+    SendChat,
+}
 
-use router::{Router, RouterCommand};
+pub struct App {
+    logs: Vec<String>,
+}
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let token = CancellationToken::new();
+impl Application for App {
+    type Message = Message;
+    type Theme = Theme;
+    type Executor = iced::executor::Default;
+    type Flags = ();
 
-    // Command channel (main → router)
-    let (cmd_tx, cmd_rx) = mpsc::channel(32);
-
-    let router = Router::new();
-
-    // Spawn router
-    tokio::spawn({
-        let token = token.clone();
-        async move {
-            if let Err(e) = router.route(token, cmd_rx).await {
-                eprintln!("Router error: {e}");
-            }
-        }
-    });
-
-    // CLI loop
-    let stdin = BufReader::new(tokio::io::stdin());
-    let mut lines = stdin.lines();
-
-    println!("connect <peer_id>");
-    println!("chat <peer_id> <message>");
-    while let Ok(Some(line)) = lines.next_line().await {
-        let parts: Vec<_> = line.splitn(3, ' ').collect();
-
-        match parts.as_slice() {
-            ["connect", peer_id] => {
-              let _ = cmd_tx
-                .send(RouterCommand::ConnectToPeer {
-                    peer_id: peer_id.to_string(),
-                 })
-                .await;
-            }
-
-            ["chat", peer_id, msg] => {
-              let _ = cmd_tx
-                .send(RouterCommand::SendChat {
-                peer_id: peer_id.to_string(),
-                message: msg.to_string(),
-                })
-                .await;
-            }
-
-            _ => println!("Unknown command"),
-        }
+    fn new(_flags: ()) -> (Self, Command<Self::Message>) {
+        (
+            Self {
+                logs: vec![],
+            },
+            Command::none(),
+        )
     }
 
-    token.cancel();
+    fn title(&self) -> String {
+        "LAN Racer UI".into()
+    }
 
-    Ok(())
+    fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
+        match message {
+            Message::StartServer => self.logs.push("Start server clicked".into()),
+            Message::ConnectPeer => self.logs.push("Connect peer clicked".into()),
+            Message::SendChat => self.logs.push("Send chat clicked".into()),
+        }
+
+        Command::none()
+    }
+
+    fn view(&self) -> Element<'_,Self::Message> {
+        let controls = row![
+            text("Controls").size(20),
+            button("Start Server").on_press(Message::StartServer),
+            button("Connect Peer").on_press(Message::ConnectPeer),
+            button("Send Chat").on_press(Message::SendChat),
+        ]
+        .spacing(10)
+        .padding(10);
+
+        let logs_panel = scrollable(
+            column(
+                self.logs
+                    .iter()
+                    .map(|l| text(l).into())
+                    .collect::<Vec<Element<Message>>>()
+            )
+            .spacing(5)
+        )
+        .height(300);
+
+        row![
+            container(controls).width(200),
+            container(text("Main Panel")).width(300),
+            container(logs_panel).width(250),
+        ]
+        .spacing(10)
+        .padding(10)
+        .into()
+    }
 }
+
+fn main() -> iced::Result {
+    App::run(iced::Settings::default())
+}
+
