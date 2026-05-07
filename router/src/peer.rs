@@ -15,6 +15,9 @@ use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
 use crate::event::LanEvent;
 
+const TYPE_PACKET: u8 = 0x01;
+const TYPE_CHAT: u8   = 0x02;
+
 #[derive(Clone)]
 pub struct PeerManager {
     api: Arc<API>,
@@ -134,39 +137,77 @@ impl PeerManager {
     }
 
     async fn setup_data_channel(&self, dc: &Arc<RTCDataChannel>, peer_id: String) {
+        let value = peer_id.clone();
         let dc_clone = dc.clone();
         let tx = self.event_tx.clone();
 
-        dc.on_message(Box::new(move |msg: DataChannelMessage| {
-            let tx = tx.clone();
-            Box::pin(async move {
-                tx.send(LanEvent::PacketFromPeer(msg.data.to_vec()))
-                    .await
-                    .unwrap();
-            })
-        }));
+        dc.on_message(Box::new(move |msg| {
+        let tx = tx.clone();
+         let peer_id = value.clone();
+
+        Box::pin(async move {
+            if msg.data.is_empty() {
+                return;
+        }
+
+            let msg_type = msg.data[0];
+            let payload = &msg.data[1..];
+        match msg_type {
+            TYPE_PACKET => {
+                let _ = tx.send(LanEvent::PacketFromPeer(payload.to_vec())).await;
+            }
+
+            TYPE_CHAT => {
+                let text = String::from_utf8_lossy(payload).to_string();
+
+                let _ = tx.send(LanEvent::ChatMessage {
+                    from: peer_id,
+                    message: text,
+                }).await;
+            }
+
+            _ => {
+                eprintln!("Unknown message type: {}", msg_type);
+            }
+        }
+        })
+    }));
 
         let mut channels = self.data_channels.write().await;
         channels.insert(peer_id, dc_clone);
     }
 
     pub async fn route_and_send(&self, pkt: Vec<u8>) -> Result<()> {
-        let bytes = bytes::Bytes::from_owner(pkt);
+        let mut framed = Vec::with_capacity(1 + pkt.len());
+
+        framed.push(TYPE_PACKET);      // 🧠 header
+        framed.extend_from_slice(&pkt);
+
+        let bytes = bytes::Bytes::from(framed);
+
         for (_, chan) in self.data_channels.read().await.iter() {
             chan.send(&bytes).await?;
         }
+
         Ok(())
-    }
+     }
 
-    pub async fn send_chat(&self, peer_id: &str, message: String) -> Result<()> {
-        let channels = self.data_channels.read().await;
+  pub async fn send_chat(&self, peer_id: &str, message: String) -> Result<()> {
+     let channels = self.data_channels.read().await;
 
-        let chan = channels
-            .get(peer_id)
+    let chan = channels
+        .get(peer_id)
         .ok_or(anyhow!("Peer not found"))?;
 
-        chan.send_text(&message).await?;
+    let mut framed = Vec::with_capacity(1 + message.len());
 
-        Ok(())
+    framed.push(TYPE_CHAT);                 // 🧠 header
+    framed.extend_from_slice(message.as_bytes());
+
+    let bytes = bytes::Bytes::from(framed);
+
+    chan.send(&bytes).await?;
+
+    Ok(())
     }
 }

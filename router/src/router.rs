@@ -94,6 +94,9 @@ impl Router {
                         println!("\n--- RECEIVED OFFER from {pid} ---");
                         println!("{sdp}");
                     }
+                    Some(LanEvent::ChatMessage { from, message }) => {
+                        println!("\n[Chat] {}: {}", from, message);
+                    }
                     None => break,
                 }
             }

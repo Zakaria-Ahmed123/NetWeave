@@ -48,7 +48,6 @@ async fn main() -> Result<()> {
             }
 
             ["chat", peer_id, msg] => {
-              println!("🔥 CHAT COMMAND HIT: {} -> {}", peer_id, msg);
               let _ = cmd_tx
                 .send(RouterCommand::SendChat {
                 peer_id: peer_id.to_string(),
