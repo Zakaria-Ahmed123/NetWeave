@@ -20,25 +20,6 @@ peers
 -   📡 Signaling server for SDP exchange
 -   🖥️ Optional Iced GUI for control & monitoring
 
-------------------------------------------------------------------------
-
-# 🧠 Architecture Overview
-
-        ┌──────────────┐
-        │   Iced UI    │
-        └─────┬────────┘
-              │ commands
-              ▼
-        ┌──────────────┐
-        │    Router    │
-        └─────┬────────┘
-              │
-
-┌──────────┴──────────┐ ▼ ▼ PeerManager Signaling Server (WebRTC) (SDP
-exchange) │ ▼ TUN Interface (virtual network)
-
-------------------------------------------------------------------------
-
 # ⚙️ Components
 
 ## 1. PeerManager
@@ -64,6 +45,10 @@ connection status
 
 # 📦 Example Commands
 
+### Run the sinaling server 
+``` bash
+sudo cargo run --bin signal_server
+```
 ### Create a connection
 
 ``` bash
@@ -76,21 +61,40 @@ connect peer-1
 chat peer-1 hello
 ```
 
-### Start signaling server
-
-``` bash
-start-server
-```
-
 ------------------------------------------------------------------------
 
 # 🧪 Testing Setup
 
 ## Same machine
 
+### Run the sinaling server 
 ``` bash
-cargo run -- tun0 10.10.0.1
-cargo run -- tun1 10.10.0.2
+sudo cargo run --bin signal_server
+```
+### Register peers to the server (use different terminals for the server , peer-1,peer-2 ,and so on) 
+``` bash
+cargo run --bin router -- tun0 10.10.0.1
+cargo run --bin router -- tun1 10.10.0.2
+```
+### Connection between peers (peer-1 -> peer-2) 
+- On peer-1 terminal run the following command
+``` bash
+        connect peer-2 
+```
+- You will see the following output on peer-1 and peer-2 terminals :
+``` bash
+        [System]: Peer 1 connected.
+        [System]: Peer 2 connected. 
+```
+- Then you can test :
+- ``` bash
+        chat peer-1 <your_message>
+        chat peer-2 <your_message> 
+```
+- Then You will see the following output on peer-1 and peer-2 terminals :
+``` bash
+        [Chat]: peer-1 message
+        [Chat]: peer-2 message 
 ```
 
 ## Different machines (LAN or internet)
@@ -130,12 +134,12 @@ NetWeave uses a hybrid model:
 
 # 🧭 Roadmap
 
--   Add TURN support for strict NAT environments
--   Improve peer discovery system
--   Add authentication layer
--   Build full chat UI
--   Add network visualization (graph view)
--   Add multi-peer routing (mesh mode)
+- []   Add TURN support for strict NAT environments
+- [] Improve peer discovery system
+- []  Add authentication layer
+- [] Build full chat UI
+- []  Add network visualization (graph view)
+- [] Add multi-peer routing (mesh mode)
 
 ------------------------------------------------------------------------
 
@@ -144,7 +148,5 @@ NetWeave uses a hybrid model:
 NetWeave aims to become a lightweight, programmable mesh network layer.
 
 ------------------------------------------------------------------------
-
-# 🏁 Status
 
 Early development --- core networking and routing in progress
