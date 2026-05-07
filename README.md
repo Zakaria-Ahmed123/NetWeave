@@ -91,16 +91,19 @@ cargo run --bin router -- tun1 10.10.0.2
 ``` bash
         connect peer-2 
 ```
+
 - You will see the following output on peer-1 and peer-2 terminals :
 ``` bash
         [System]: Peer 1 connected.
         [System]: Peer 2 connected. 
 ```
+
 - Then you can test :
    ``` bash
         chat peer-1 <your_message>
         chat peer-2 <your_message> 
 ```
+
 - Then You will see the following output on peer-1 and peer-2 terminals :
    ``` bash
         [Chat]: peer-1 message
